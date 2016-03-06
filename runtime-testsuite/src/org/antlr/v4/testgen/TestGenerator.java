@@ -29,33 +29,24 @@
  */
 package org.antlr.v4.testgen;
 
-import org.stringtemplate.v4.ST;
-import org.stringtemplate.v4.STGroup;
-import org.stringtemplate.v4.STGroupFile;
-import org.stringtemplate.v4.gui.STViz;
-
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import org.stringtemplate.v4.ST;
+import org.stringtemplate.v4.STGroup;
+import org.stringtemplate.v4.STGroupFile;
+import org.stringtemplate.v4.gui.STViz;
+
 public class TestGenerator {
-	public static final String antlrRoot = "."; // assume antlr4 root dir is current working dir
-
-	// This project uses UTF-8, but the plugin might be used in another project
-	// which is not. Always load templates with UTF-8, but write using the
-	// specified encoding.
-	protected final String encoding;
-
-	protected final File runtimeTemplates;
-
-	protected final File outputDirectory;
-
-	protected final boolean visualize;
+	
+	public final static String[] targets = {"CSharp", "Java", "Python2", "Python3", "JavaScript/Node", "JavaScript/Safari", "JavaScript/Firefox", "JavaScript/Explorer", "JavaScript/Chrome"};
 
 	/** Execute from antlr4 root dir:
 	 * *
@@ -63,12 +54,14 @@ public class TestGenerator {
 	 *
 	 * Example:
 	 *
-	 * $ java org.antlr.v4.testgen.TestGenerator -o /tmp -templates /Users/parrt/antlr/code/antlr4/tool/test/org/antlr/v4/test/runtime/java/Java.test.stg
+	 * $ java org.antlr.v4.testgen.TestGenerator -root /Users/parrt/antlr/code/antlr4
 	 */
 	public static void main(String[] args) {
 		String rootDir = null;
 		String outDir = null;
-		String targetSpecificTemplateFile = null;
+		String templatesRoot = null;
+		String target = "ALL";
+		boolean browsers = false;
 		boolean viz = false;
 
 		int i = 0;
@@ -78,115 +71,142 @@ public class TestGenerator {
 				i++;
 				rootDir = args[i];
 			}
-			else if (arg.startsWith("-o")) {
+			else if (arg.startsWith("-outdir")) {
 				i++;
 				outDir = args[i];
 			}
 			else if (arg.startsWith("-templates")) {
 				i++;
-				targetSpecificTemplateFile = args[i];
+				templatesRoot = args[i];
+			}
+			else if (arg.startsWith("-target")) {
+				i++;
+				target = args[i];
+			}
+			else if (arg.startsWith("-browsers")) {
+				browsers = true;
 			}
 			else if (arg.startsWith("-viz")) {
 				viz = true;
 			}
 			i++;
 		}
-		if ( rootDir!=null) {
-			genAllTargets(rootDir, viz);
-			System.exit(0);
-		}
 		
-		if ( outDir==null || targetSpecificTemplateFile==null ) {
-			System.err.println("You must give an output root dir and templates file");
-			System.exit(1);
+		System.out.println("rootDir = " + rootDir);
+		System.out.println("outputDir = " + outDir);
+		System.out.println("templates = " + templatesRoot);
+		System.out.println("target = " + target);
+		System.out.println("browsers = " + browsers);
+		System.out.println("viz = " + viz);
+		
+		if(rootDir==null) {
+			System.out.println("rootDir is mandatory!" + rootDir);
+			return;
 		}
+		if(outDir==null)
+			outDir = rootDir + "/test";
+			
+		if(templatesRoot==null)
+			templatesRoot = rootDir + "/resources/org/antlr/v4/test/runtime/templates";
 
-		genTarget(outDir, targetSpecificTemplateFile, viz);
+		if ( "ALL".equalsIgnoreCase(target)) {
+			genAllTargets(rootDir, outDir, templatesRoot, browsers, viz);
+		} else
+			genTarget(rootDir, outDir, target, templatesRoot, viz);
 	}
-	
-	public static void genAllTargets(final String rootDir, boolean viz) {
-		for(TargetConfiguration config : TargetConfiguration.ALL) {
-			String outDir = rootDir + config.outDir;
-			String templates = rootDir + config.templates;
-			genTarget(outDir, templates, viz);
+
+	public static void genAllTargets(String rootDir, String outDirRoot, String templatesRoot, boolean browsers, boolean viz) {
+		for(String target : targets) {
+			if(!browsers && "JavaScript/Safari".equals(target))
+				return;
+			genTarget(rootDir, outDirRoot, target, templatesRoot, viz);
 		}
-		
 	}
 	
-	public static void genTarget(final String outDir, String targetSpecificTemplateFile, boolean viz) {
+	public static void genTarget(final String rootDir, final String outDir, final String fullTarget, final String templatesDir, boolean viz) {
+		String[] parts = fullTarget.split("/");
+		String target = parts[0];
+		String subTarget = parts.length>1 ? parts[1] : target;
+		String targetPackage = rootDir + "/resources/org/antlr/v4/test/runtime/" + fullTarget.toLowerCase();
+		String targetTemplate = targetPackage + "/" + subTarget + ".test.stg";
 		TestGenerator gen = new TestGenerator("UTF-8",
-											  new File(targetSpecificTemplateFile),
-											  new File(outDir),
-											  viz)
-		{
-			@Override
-			protected void info(String message) {
-				System.err.println(message);
-			}
-			@Override
-			public File getOutputDir(String templateFolder) {
-				String targetName = getTargetNameFromTemplatesFileName();
-				// compute package
-				String templatePath = runtimeTemplates.getPath();
-				int packageStart = templatePath.indexOf("org/antlr/v4/test/runtime");
-				int packageEnd = templatePath.indexOf("/" + targetName + ".test.stg");
-				String packageDir = templatePath.substring(packageStart, packageEnd);
-				return new File(outputDirectory, packageDir);
-			}
-			@Override
-			public String getTestTemplatesResourceDir() { 
-				return "runtime-testsuite/resources/org/antlr/v4/test/runtime/templates"; 
-			}
-		};
-		gen.info("Generating target " + gen.getTargetNameFromTemplatesFileName());
+					fullTarget,
+					rootDir,
+					new File(outDir),
+					new File(templatesDir),
+					new File(targetTemplate),
+					viz);
+		gen.info("Generating target " + gen.getTargetName());
 		gen.execute();
 	}
 
-	public TestGenerator(String encoding, File runtimeTemplates, File outputDirectory, boolean visualize) {
+	// This project uses UTF-8, but the plugin might be used in another project
+	// which is not. Always load templates with UTF-8, but write using the
+	// specified encoding.
+	protected final String encoding;
+	protected final String targetName;
+	protected final String rootDir;
+	protected final File outputDir;
+	protected final File testTemplates;
+	protected final File runtimeTemplate;
+	protected final boolean visualize;
+
+	public TestGenerator(String encoding, String targetName, String rootDir, File outputDir, File testTemplates, File runtimeTemplate, boolean visualize) {
 		this.encoding = encoding;
-		this.runtimeTemplates = runtimeTemplates;
-		this.outputDirectory = outputDirectory;
+		this.targetName = targetName;
+		this.rootDir = rootDir;
+		this.outputDir = outputDir;
+		this.testTemplates = testTemplates;
+		this.runtimeTemplate = runtimeTemplate;
 		this.visualize = visualize;
 	}
 
+	private String getTargetName() {
+		return targetName;
+	}
+
+
 	public void execute() {
-		STGroup targetGroup = new STGroupFile(runtimeTemplates.getPath());
+		STGroup targetGroup = new STGroupFile(runtimeTemplate.getPath());
 		targetGroup.registerModelAdaptor(STGroup.class, new STGroupModelAdaptor());
 		targetGroup.defineDictionary("escape", new JavaEscapeStringMap());
 		targetGroup.defineDictionary("lines", new LinesStringMap());
 		targetGroup.defineDictionary("strlen", new StrlenStringMap());
-
-		String rootFolder = getTestTemplatesResourceDir();
-		STGroup index = new STGroupFile(rootFolder+"/Index.stg");
-		generateCodeForFolder(targetGroup, rootFolder, index);
+		generateCodeForFoldersInIndex(targetGroup);
 	}
 
-	private void generateCodeForFolder(STGroup targetGroup, String folder, STGroup index) {
-		// make sure the index group is loaded since we call rawGetDictionary
-		index.load();
-
+	protected void generateCodeForFoldersInIndex(STGroup targetGroup) {
+		File targetFolder = getOutputDir(testTemplates+"");
+		STGroup index = new STGroupFile(testTemplates+"/Index.stg");
+		index.load(); // make sure the index group is loaded since we call rawGetDictionary
 		Map<String, Object> folders = index.rawGetDictionary("TestFolders");
 		if (folders != null) {
 			for (String key : folders.keySet()) {
-				String subfolder = folder + "/" + key;
-				STGroup subindex = new STGroupFile(subfolder + "/Index.stg");
-				generateCodeForFolder(targetGroup, folder + "/" + key, subindex);
+				final String testDir = testTemplates + "/" + key;
+				STGroup testIndex = new STGroupFile(testDir + "/Index.stg");
+				testIndex.load();
+				Map<String, Object> templateNames = testIndex.rawGetDictionary("TestTemplates");
+				if ( templateNames != null && !templateNames.isEmpty() ) {
+					final ArrayList<String> sortedTemplateNames = new ArrayList<String>(templateNames.keySet());
+					Collections.sort(sortedTemplateNames);
+					generateTestFile(testIndex, targetGroup, testDir, sortedTemplateNames, targetFolder);
+				}
 			}
-		}
-
-		Map<String, Object> templates = index.rawGetDictionary("TestTemplates");
-		if (templates != null && !templates.isEmpty()) {
-			generateTestFile(index, targetGroup, folder.substring(folder.lastIndexOf('/') + 1), folder, new ArrayList<String>(templates.keySet()));
 		}
 	}
 
-	private void generateTestFile(STGroup index, STGroup targetGroup, String testFile, String templateFolder, Collection<String> testTemplates) {
-		File targetFolder = getOutputDir(templateFolder);
-		File targetFile = new File(targetFolder, "Test" + testFile + ".java");
+	protected void generateTestFile(STGroup index,
+									STGroup targetGroup,
+									String testDir,
+									Collection<String> testTemplates,
+									File targetFolder)
+	{
+		String testName = testDir.substring(testDir.lastIndexOf('/') + 1);
+		File targetFile = new File(targetFolder, "Test" + testName + ".java");
 		info("Generating file "+targetFile.getAbsolutePath());
 		List<ST> templates = new ArrayList<ST>();
 		for (String template : testTemplates) {
-			STGroup testGroup = new STGroupFile(templateFolder + "/" + template + STGroup.GROUP_FILE_EXTENSION);
+			STGroup testGroup = new STGroupFile(testDir + "/" + template + STGroup.GROUP_FILE_EXTENSION);
 			importLanguageTemplates(testGroup, targetGroup);
 			ST testType = testGroup.getInstanceOf("TestType");
 			if (testType == null) {
@@ -205,19 +225,20 @@ public class TestGenerator {
 		}
 
 		ST testFileTemplate = targetGroup.getInstanceOf("TestFile");
-		testFileTemplate.addAggr("file.{Options,name,tests}", index.rawGetDictionary("Options"), testFile, templates);
+		testFileTemplate.addAggr("file.{Options,name,tests}", index.rawGetDictionary("Options"), testName, templates);
 
 		if (visualize) {
 			STViz viz = testFileTemplate.inspect();
 			try {
 				viz.waitForClose();
-			} catch (InterruptedException ex) {
 			}
+			catch (InterruptedException ex) { }
 		}
 
 		try {
 			writeFile(targetFile, testFileTemplate.render());
-		} catch (IOException ex) {
+		}
+		catch (IOException ex) {
 			error(String.format("Failed to write output file: %s", targetFile), ex);
 		}
 	}
@@ -258,21 +279,18 @@ public class TestGenerator {
 		}
 	}
 
-	public String getTestTemplatesResourceDir() { return "org/antlr/v4/test/runtime/templates"; }
-
-	public String getTargetNameFromTemplatesFileName() {
-		// runtimeTemplates is like /Users/parrt/antlr/code/antlr4/tool/test/org/antlr/v4/test/runtime/java/Java.test.stg
-		// extra target name
-		int targetEnd = runtimeTemplates.getPath().indexOf(".test.stg");
-		String targetAtEnd = runtimeTemplates.getPath().substring(0, targetEnd);
-		return targetAtEnd.substring(targetAtEnd.lastIndexOf('/') + 1);
-	}
-
 	public File getOutputDir(String templateFolder) {
-		return new File(outputDirectory, templateFolder.substring(0, templateFolder.indexOf("/templates")));
+		if(templateFolder.startsWith(rootDir))
+			templateFolder = templateFolder.substring(rootDir.length());
+		if(templateFolder.startsWith("/resources"))
+			templateFolder = templateFolder.substring("/resources".length());
+		templateFolder = templateFolder.substring(0, templateFolder.indexOf("/templates"));
+		templateFolder += "/" + targetName.toLowerCase();
+		return new File(outputDir, templateFolder);
 	}
 
 	protected void info(String message) {
+		// System.out.println("INFO: " + message);
 	}
 
 	protected void warn(String message) {
