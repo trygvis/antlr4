@@ -40,7 +40,7 @@ elseif("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU")
   set(disabled_compile_warnings "${disabled_compile_warnings} -Wno-multichar")
 endif()
 
-  
+
 set_target_properties(antlr4_shared
                       PROPERTIES VERSION   ${ANTLR_VERSION}
                                  SOVERSION ${ANTLR_VERSION}
@@ -54,15 +54,72 @@ set_target_properties(antlr4_static
                                  COMPILE_FLAGS "${disabled_compile_warnings}")
 
 install(TARGETS antlr4_shared
-        DESTINATION lib)
+        EXPORT antlr4_shared_targets
+        DESTINATION lib
+        INCLUDES DESINATION include/)
 install(TARGETS antlr4_static
-        ARCHIVE DESTINATION lib)
+        EXPORT antlr4_static_targets
+        ARCHIVE
+        DESTINATION lib
+        INCLUDES DESINATION include/)
 
-install(DIRECTORY "${PROJECT_SOURCE_DIR}/runtime/src/" 
-        DESTINATION "include" 
-        COMPONENT dev 
+install(DIRECTORY "${PROJECT_SOURCE_DIR}/runtime/src/"
+        DESTINATION "include"
+        COMPONENT dev
         FILES_MATCHING PATTERN "*.h"
         )
 
+install(FILES "${PROJECT_SOURCE_DIR}/runtime/Antlr4Helpers.cmake"
+        DESTINATION "lib/cmake/Antlr4"
+        )
 
+###
+include(GenerateExportHeader)
+include(CMakePackageConfigHelpers)
 
+generate_export_header(antlr4_shared)
+generate_export_header(antlr4_static)
+
+write_basic_package_version_file(
+        "${CMAKE_CURRENT_BINARY_DIR}/Antlr4/Antlr4ConfigVersion.cmake"
+        VERSION ${ANTLR_VERSION}
+        COMPATIBILITY AnyNewerVersion
+)
+
+#export(EXPORT antlr4_shared_targets
+#        FILE "${CMAKE_CURRENT_BINARY_DIR}/Antlr4/Antlr4TargetsSharedEXPORT.cmake"
+#        NAMESPACE antlr4::
+#        )
+#
+#export(EXPORT antlr4_static_targets
+#        FILE "${CMAKE_CURRENT_BINARY_DIR}/Antlr4/Antlr4TargetsStaticEXPORT.cmake"
+#        NAMESPACE antlr4::
+#        )
+
+set(ConfigPackageLocation lib/cmake/Antlr4)
+install(EXPORT      antlr4_shared_targets
+        FILE        Antlr4TargetsShared.cmake
+        NAMESPACE   Antlr4::
+        DESTINATION ${ConfigPackageLocation}
+        )
+
+set(ConfigPackageLocation lib/cmake/Antlr4)
+install(EXPORT      antlr4_static_targets
+        FILE        Antlr4TargetsStatic.cmake
+        NAMESPACE   Antlr4::
+        DESTINATION ${ConfigPackageLocation}
+        )
+
+#configure_file(cmake/ClimbingStatsConfig.cmake
+#        "${CMAKE_CURRENT_BINARY_DIR}/ClimbingStats/ClimbingStatsConfig.cmake"
+#        COPYONLY
+#        )
+#install(
+#        FILES
+#        cmake/ClimbingStatsConfig.cmake
+#        "${CMAKE_CURRENT_BINARY_DIR}/ClimbingStats/ClimbingStatsConfigVersion.cmake"
+#        DESTINATION
+#        ${ConfigPackageLocation}
+#        COMPONENT
+#        Devel
+#)
