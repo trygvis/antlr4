@@ -41,24 +41,25 @@ elseif("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU")
 endif()
 
 
-set_target_properties(antlr4_shared
-                      PROPERTIES VERSION   ${ANTLR_VERSION}
-                                 SOVERSION ${ANTLR_VERSION}
-                                 OUTPUT_NAME libantlr4-runtime
-                                 COMPILE_FLAGS "${disabled_compile_warnings}")
+set_target_properties(antlr4_shared PROPERTIES
+        VERSION ${ANTLR_VERSION}
+        SOVERSION ${ANTLR_VERSION}
+        OUTPUT_NAME libantlr4-runtime
+        COMPILE_FLAGS "${disabled_compile_warnings}")
 
-set_target_properties(antlr4_static
-                      PROPERTIES VERSION   ${ANTLR_VERSION}
-                                 SOVERSION ${ANTLR_VERSION}
-                                 OUTPUT_NAME libantlr4-runtime
-                                 COMPILE_FLAGS "${disabled_compile_warnings}")
+set_target_properties(antlr4_static PROPERTIES
+        VERSION ${ANTLR_VERSION}
+        SOVERSION ${ANTLR_VERSION}
+        OUTPUT_NAME libantlr4-runtime
+        COMPILE_FLAGS "${disabled_compile_warnings}")
 
 install(TARGETS antlr4_shared
-        EXPORT antlr4_shared_targets
+        EXPORT antlr4_export
         DESTINATION lib
         INCLUDES DESINATION include/)
+
 install(TARGETS antlr4_static
-        EXPORT antlr4_static_targets
+        EXPORT antlr4_export
         ARCHIVE
         DESTINATION lib
         INCLUDES DESINATION include/)
@@ -66,12 +67,10 @@ install(TARGETS antlr4_static
 install(DIRECTORY "${PROJECT_SOURCE_DIR}/runtime/src/"
         DESTINATION "include"
         COMPONENT dev
-        FILES_MATCHING PATTERN "*.h"
-        )
+        FILES_MATCHING PATTERN "*.h")
 
-install(FILES "${PROJECT_SOURCE_DIR}/runtime/Antlr4Helpers.cmake"
-        DESTINATION "lib/cmake/Antlr4"
-        )
+install(FILES "cmake/Antlr4Helpers.cmake"
+        DESTINATION "lib/cmake/Antlr4")
 
 ###
 include(GenerateExportHeader)
@@ -83,43 +82,32 @@ generate_export_header(antlr4_static)
 write_basic_package_version_file(
         "${CMAKE_CURRENT_BINARY_DIR}/Antlr4/Antlr4ConfigVersion.cmake"
         VERSION ${ANTLR_VERSION}
-        COMPATIBILITY AnyNewerVersion
+        COMPATIBILITY AnyNewerVersion)
+
+#export(EXPORT antlr4_export
+#        FILE "${CMAKE_CURRENT_BINARY_DIR}/Antlr4/Antlr4TargetsEXPORT.cmake"
+#        NAMESPACE antlr4::)
+
+install(EXPORT antlr4_export
+        FILE Antlr4Targets.cmake
+        NAMESPACE Antlr4::
+        DESTINATION lib/cmake/Antlr4
+        )
+
+configure_file(cmake/Antlr4Config.cmake
+        "${CMAKE_CURRENT_BINARY_DIR}/ClimbingStats/Antlr4Config.cmake"
+        COPYONLY
+)
+install(
+        FILES         cmake/Antlr4Config.cmake
+                      "${CMAKE_CURRENT_BINARY_DIR}/Antlr4/Antlr4ConfigVersion.cmake"
+        DESTINATION   lib/cmake/Antlr4
+        COMPONENT     Devel
 )
 
-#export(EXPORT antlr4_shared_targets
-#        FILE "${CMAKE_CURRENT_BINARY_DIR}/Antlr4/Antlr4TargetsSharedEXPORT.cmake"
-#        NAMESPACE antlr4::
-#        )
-#
-#export(EXPORT antlr4_static_targets
-#        FILE "${CMAKE_CURRENT_BINARY_DIR}/Antlr4/Antlr4TargetsStaticEXPORT.cmake"
-#        NAMESPACE antlr4::
-#        )
-
-set(ConfigPackageLocation lib/cmake/Antlr4)
-install(EXPORT      antlr4_shared_targets
-        FILE        Antlr4TargetsShared.cmake
-        NAMESPACE   Antlr4::
-        DESTINATION ${ConfigPackageLocation}
-        )
-
-set(ConfigPackageLocation lib/cmake/Antlr4)
-install(EXPORT      antlr4_static_targets
-        FILE        Antlr4TargetsStatic.cmake
-        NAMESPACE   Antlr4::
-        DESTINATION ${ConfigPackageLocation}
-        )
-
-#configure_file(cmake/ClimbingStatsConfig.cmake
-#        "${CMAKE_CURRENT_BINARY_DIR}/ClimbingStats/ClimbingStatsConfig.cmake"
-#        COPYONLY
-#        )
-#install(
-#        FILES
-#        cmake/ClimbingStatsConfig.cmake
-#        "${CMAKE_CURRENT_BINARY_DIR}/ClimbingStats/ClimbingStatsConfigVersion.cmake"
-#        DESTINATION
-#        ${ConfigPackageLocation}
-#        COMPONENT
-#        Devel
-#)
+install(
+        FILES "${CMAKE_CURRENT_SOURCE_DIR}/../../../tool/target/antlr4-${ANTLR_VERSION}-SNAPSHOT.jar"
+        DESTINATION lib
+        RENAME antlr4-cpp.jar
+        COMPONENT Devel
+)

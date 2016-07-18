@@ -2,11 +2,11 @@ function(antlr4_add_target)
     set(options OPTIONAL VISITOR STATIC SHARED)
     set(oneValueArgs TARGET LEXER PARSER GRAMMAR)
     set(multiValueArgs)
-    message("options: ${options}")
+    message(STATUS "options: ${options}")
     cmake_parse_arguments(antlr4_add_target "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
-    message("antlr4_add_target_UNPARSED_ARGUMENTS: ${antlr4_add_target_UNPARSED_ARGUMENTS}")
-    message("antlr4_add_target_LEXER: ${antlr4_add_target_LEXER}")
-    message("antlr4_add_target_PARSER: ${antlr4_add_target_PARSER}")
+    message(STATUS "antlr4_add_target_UNPARSED_ARGUMENTS: ${antlr4_add_target_UNPARSED_ARGUMENTS}")
+    message(STATUS "antlr4_add_target_LEXER: ${antlr4_add_target_LEXER}")
+    message(STATUS "antlr4_add_target_PARSER: ${antlr4_add_target_PARSER}")
 
     if (NOT antlr4_add_target_TARGET)
         message(FATAL_ERROR "TARGET <target name> has to be specified")
@@ -38,7 +38,7 @@ function(antlr4_add_target)
     string(REGEX MATCH "^([^\\.]*)\\.g4" JUNK ${parser})
     set(PARSER_CPP "${CMAKE_BINARY_DIR}/${TARGET}/${CMAKE_MATCH_1}.cpp")
     set(PARSER_H "${CMAKE_BINARY_DIR}/${TARGET}/${CMAKE_MATCH_1}.h")
-    message("LEXER_TOKENS: ${LEXER_TOKENS}")
+    message(STATUS "LEXER_TOKENS: ${LEXER_TOKENS}")
 
     add_custom_command(OUTPUT "${LEXER_CPP}" "${LEXER_H}" "${LEXER_TOKENS}"
             COMMAND java -cp "${ANTLR4_JAR}" org.antlr.v4.Tool
@@ -56,16 +56,27 @@ function(antlr4_add_target)
             COMMENT "Generating Antlr4 parser: ${TARGET}"
             DEPENDS "${parser}" "${LEXER_TOKENS}")
 
+    # This doesn't quite feel right, these directories should be included automatically by CMake.
     if (antlr4_add_target_STATIC)
-        get_target_property(ID Antlr4::antlr4_static INTERFACE_INCLUDE_DIRECTORIES)
+        get_target_property(include_directories Antlr4::antlr4_static INTERFACE_INCLUDE_DIRECTORIES)
     elseif (antlr4_add_target_SHARED)
-        get_target_property(ID Antlr4::antlr4_shared INTERFACE_INCLUDE_DIRECTORIES)
+        get_target_property(include_directories Antlr4::antlr4_shared INTERFACE_INCLUDE_DIRECTORIES)
     endif()
-    message("ID: ${ID}")
+    message(STATUS "include_directories: ${include_directories}")
 
-    add_library(${TARGET} STATIC "${LEXER_CPP}" "${PARSER_CPP}")
+    add_library(${TARGET} STATIC "")
+    target_sources(${TARGET} PRIVATE "${LEXER_CPP}" "${LEXER_H}" "${LEXER_TOKENS}")
+    target_sources(${TARGET} PRIVATE "${PARSER_CPP}" "${PARSER_H}")
+
     # TODO: use target_compile_features() instead of --std=..
+
     target_compile_options(${TARGET} PRIVATE "--std=c++11")
-    target_include_directories("${TARGET}" PUBLIC "${CMAKE_BINARY_DIR}/${TARGET}" "${ID}")
-    target_link_libraries("${TARGET}" PUBLIC "${lib}")
+    target_include_directories(${TARGET} PUBLIC "${CMAKE_BINARY_DIR}/${TARGET}")
+    target_include_directories(${TARGET} PUBLIC "${include_directories}")
+    target_link_libraries(${TARGET} PUBLIC "${lib}")
+
+    get_target_property(x ${TARGET} INTERFACE_INCLUDE_DIRECTORIES)
+    message(STATUS "INTERFACE_INCLUDE_DIRECTORIES: ${x}")
+    get_target_property(x ${TARGET} SOURCES)
+    message(STATUS "SOURCES: ${x}")
 endfunction()
