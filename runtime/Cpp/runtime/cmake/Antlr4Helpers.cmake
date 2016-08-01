@@ -1,5 +1,5 @@
 function(antlr4_add_target)
-    set(options OPTIONAL VISITOR STATIC SHARED)
+    set(options STATIC SHARED)
     set(oneValueArgs TARGET LEXER PARSER GRAMMAR)
     set(multiValueArgs)
     cmake_parse_arguments(antlr4_add_target "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
@@ -39,7 +39,7 @@ function(antlr4_add_target)
             COMMAND java -cp "${ANTLR4_JAR}" org.antlr.v4.Tool
                 -Dlanguage=Cpp
                 -o "${CMAKE_BINARY_DIR}/${TARGET}"
-                "${CMAKE_SOURCE_DIR}/${lexer}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/${lexer}"
             COMMENT "Generating Antlr4 lexer: ${TARGET}"
             DEPENDS "${lexer}")
 
@@ -47,7 +47,7 @@ function(antlr4_add_target)
             COMMAND java -cp "${ANTLR4_JAR}" org.antlr.v4.Tool
                 -Dlanguage=Cpp
                 -o "${CMAKE_BINARY_DIR}/${TARGET}"
-                "${CMAKE_SOURCE_DIR}/${parser}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/${parser}"
             COMMENT "Generating Antlr4 parser: ${TARGET}"
             DEPENDS "${parser}" "${LEXER_TOKENS}")
 
@@ -58,7 +58,7 @@ function(antlr4_add_target)
         get_target_property(include_directories Antlr4::antlr4_shared INTERFACE_INCLUDE_DIRECTORIES)
     endif()
 
-    add_library(${TARGET} STATIC "")
+    add_library(${TARGET} OBJECT "")
     target_sources(${TARGET} PRIVATE "${LEXER_CPP}" "${LEXER_H}" "${LEXER_TOKENS}")
     target_sources(${TARGET} PRIVATE "${PARSER_CPP}" "${PARSER_H}")
 
@@ -67,8 +67,4 @@ function(antlr4_add_target)
     target_compile_options(${TARGET} PRIVATE "--std=c++11")
     target_include_directories(${TARGET} PUBLIC "${CMAKE_BINARY_DIR}/${TARGET}")
     target_include_directories(${TARGET} PUBLIC "${include_directories}")
-    target_link_libraries(${TARGET} PUBLIC "${lib}")
-
-    get_target_property(x ${TARGET} INTERFACE_INCLUDE_DIRECTORIES)
-    get_target_property(x ${TARGET} SOURCES)
 endfunction()
